@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kuis Pengetahuan Umum</title>
+<style>
+:root{
+  --bg:#eef3f1; --surface:#ffffff; --ink:#16302b; --muted:#5b726c; --line:#cfdcd8;
+  --accent:#0f766e; --accent-ink:#ffffff; --good:#15803d; --good-bg:#dcf5e5; --bad:#b91c1c; --bad-bg:#fde4e4;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1a18; --surface:#16262a; --ink:#e6f2ef; --muted:#9bb4ae; --line:#2b4140;
+    --accent:#2dd4bf; --accent-ink:#06201c; --good:#4ade80; --good-bg:#12331f; --bad:#f87171; --bad-bg:#3a1717;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1a18; --surface:#16262a; --ink:#e6f2ef; --muted:#9bb4ae; --line:#2b4140;
+  --accent:#2dd4bf; --accent-ink:#06201c; --good:#4ade80; --good-bg:#12331f; --bad:#f87171; --bad-bg:#3a1717;
+  color-scheme:dark;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Atkinson Hyperlegible","Segoe UI",system-ui,sans-serif;line-height:1.5;min-height:100vh;display:flex;justify-content:center;padding:20px 16px}
+main{width:100%;max-width:640px}
+h1,h2{font-family:"Fraunces",Georgia,serif;margin:0;line-height:1.15}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:24px}
+.hidden{display:none}
+.big{font-size:clamp(2rem,7vw,2.8rem);margin-bottom:8px}
+.muted{color:var(--muted)}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+select{font:inherit;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);min-width:0;flex:1}
+label{display:block;font-weight:600;margin:18px 0 6px}
+button{font:inherit;cursor:pointer;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:12px 18px}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
+button:disabled{opacity:.5;cursor:default}
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-weight:600}
+.bar{height:8px;background:var(--line);border-radius:99px;overflow:hidden;margin-bottom:20px}
+.bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+.timer{font-variant-numeric:tabular-nums}
+.timer.low{color:var(--bad)}
+#q{font-size:1.3rem;margin-bottom:18px}
+.opts{display:grid;gap:10px}
+.opt{text-align:left;display:flex;gap:12px;align-items:flex-start;width:100%;padding:14px}
+.opt b{flex:none;width:26px;height:26px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;font-size:.85rem}
+.opt:hover:not(:disabled){border-color:var(--accent)}
+.opt.good{background:var(--good-bg);border-color:var(--good);opacity:1}
+.opt.bad{background:var(--bad-bg);border-color:var(--bad);opacity:1}
+.explain{margin-top:16px;padding:12px 14px;border-radius:10px;background:var(--bg);border-left:4px solid var(--accent)}
+.next{margin-top:16px;display:flex;justify-content:flex-end}
+.score{font-family:"Fraunces",Georgia,serif;font-size:4rem;line-height:1;margin:10px 0}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0}
+.stats div{background:var(--bg);border-radius:10px;padding:12px;text-align:center}
+.stats strong{display:block;font-size:1.4rem}
+.review{margin-top:18px;display:grid;gap:8px}
+.review details{border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.review summary{cursor:pointer;font-weight:600}
+.tag-good{color:var(--good)} .tag-bad{color:var(--bad)}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+</style>
+</head>
+<body>
+<main>
+  <section id="start" class="card">
+    <h1 class="big">Kuis Pengetahuan Umum</h1>
+    <p class="muted">Jawab pertanyaan, kumpulkan poin, dan lihat skor akhirmu. Tiap soal punya batas waktu 20 detik.</p>
+    <label for="cat">Kategori</label>
+    <select id="cat"></select>
+    <label for="cnt">Jumlah soal</label>
+    <select id="cnt"><option value="5">5 soal</option><option value="10" selected>10 soal</option></select>
+    <p class="muted" id="best"></p>
+    <div class="row" style="margin-top:18px"><button class="primary" id="go">Mulai kuis</button></div>
+  </section>
+
+  <section id="play" class="card hidden" aria-live="polite">
+    <div class="top"><span id="prog"></span><span id="pts"></span><span class="timer" id="time"></span></div>
+    <div class="bar"><i id="fill"></i></div>
+    <h2 id="q"></h2>
+    <div class="opts" id="opts"></div>
+    <div id="exp" class="explain hidden"></div>
+    <div class="next"><button class="primary hidden" id="next">Lanjut</button></div>
+  </section>
+
+  <section id="end" class="card hidden">
+    <h2 id="msg"></h2>
+    <div class="score" id="final"></div>
+    <div class="stats">
+      <div><strong id="sOk"></strong><span class="muted">Benar</span></div>
+      <div><strong id="sNo"></strong><span class="muted">Salah</span></div>
+      <div><strong id="sAcc"></strong><span class="muted">Akurasi</span></div>
+    </div>
+    <p class="muted" id="bestEnd"></p>
+    <div class="review" id="review"></div>
+    <div class="row" style="margin-top:18px"><button class="primary" id="again">Main lagi</button><button id="home">Ganti kategori</button></div>
+  </section>
+</main>
+
+<script>
+const BANK = {
+  "Umum":[
+    {q:"Apa ibu kota Australia?",o:["Sydney","Canberra","Melbourne","Perth"],a:1,e:"Canberra dipilih sebagai ibu kota sebagai kompromi antara Sydney dan Melbourne."},
+    {q:"Planet terbesar di tata surya adalah…",o:["Saturnus","Neptunus","Jupiter","Bumi"],a:2,e:"Jupiter lebih besar dari semua planet lain digabungkan."},
+    {q:"Berapa jumlah benua di dunia?",o:["5","6","7","8"],a:2,e:"Asia, Afrika, Amerika Utara, Amerika Selatan, Antartika, Eropa, dan Australia."},
+    {q:"Siapa pelukis Mona Lisa?",o:["Michelangelo","Raphael","Leonardo da Vinci","Van Gogh"],a:2,e:"Leonardo da Vinci melukisnya sekitar awal abad ke-16."},
+    {q:"Unsur kimia dengan simbol Au adalah…",o:["Perak","Aluminium","Emas","Argon"],a:2,e:"Au berasal dari kata Latin aurum yang berarti emas."},
+    {q:"Samudra terluas di dunia?",o:["Atlantik","Hindia","Arktik","Pasifik"],a:3,e:"Samudra Pasifik menutupi sekitar sepertiga permukaan Bumi."},
+    {q:"Hewan darat tercepat adalah…",o:["Singa","Cheetah","Kuda","Rusa"],a:1,e:"Cheetah bisa mencapai lebih dari 100 km/jam dalam jarak pendek."},
+    {q:"Berapa hasil dari 12 × 12?",o:["124","132","144","154"],a:2,e:"12 × 12 = 144."},
+    {q:"Mata uang Jepang adalah…",o:["Won","Yuan","Yen","Ringgit"],a:2,e:"Yen (¥) adalah mata uang resmi Jepang."},
+    {q:"Gas yang paling banyak di atmosfer Bumi?",o:["Oksigen","Nitrogen","Karbon dioksida","Hidrogen"],a:1,e:"Nitrogen menyusun sekitar 78% atmosfer."}
+  ],
+  "Indonesia":[
+    {q:"Siapa proklamator kemerdekaan Indonesia bersama Soekarno?",o:["Sutan Sjahrir","Mohammad Hatta","Ki Hajar Dewantara","Tan Malaka"],a:1,e:"Soekarno dan Mohammad Hatta memproklamasikan kemerdekaan pada 17 Agustus 1945."},
+    {q:"Danau terbesar di Indonesia adalah…",o:["Danau Toba","Danau Poso","Danau Singkarak","Danau Sentani"],a:0,e:"Danau Toba di Sumatera Utara adalah danau vulkanik terbesar di Asia Tenggara."},
+    {q:"Provinsi tempat Pulau Lombok berada?",o:["NTT","Bali","NTB","Maluku"],a:2,e:"Lombok dan Sumbawa termasuk Provinsi Nusa Tenggara Barat."},
+    {q:"Candi Buddha terbesar di dunia ada di…",o:["Prambanan","Borobudur","Mendut","Sewu"],a:1,e:"Borobudur dibangun sekitar abad ke-8 hingga ke-9 di Magelang."},
+    {q:"Berapa jumlah sila dalam Pancasila?",o:["3","4","5","6"],a:2,e:"Pancasila terdiri dari lima sila."},
+    {q:"Hewan khas Pulau Komodo adalah…",o:["Orangutan","Komodo","Badak Jawa","Anoa"],a:1,e:"Komodo adalah kadal terbesar di dunia dan endemik Nusa Tenggara."},
+    {q:"Gunung tertinggi di Pulau Jawa?",o:["Merapi","Bromo","Semeru","Slamet"],a:2,e:"Semeru memiliki tinggi sekitar 3.676 mdpl."},
+    {q:"Sumpah Pemuda diikrarkan pada tahun…",o:["1908","1928","1945","1950"],a:1,e:"Sumpah Pemuda dibacakan pada 28 Oktober 1928."},
+    {q:"Alat musik tradisional dari Jawa Barat yang dibuat dari bambu?",o:["Sasando","Angklung","Tifa","Sape"],a:1,e:"Angklung diakui UNESCO sebagai warisan budaya tak benda."},
+    {q:"Selat yang memisahkan Pulau Bali dan Lombok?",o:["Selat Sunda","Selat Lombok","Selat Makassar","Selat Malaka"],a:1,e:"Selat Lombok juga menjadi batas biogeografi Garis Wallace."}
+  ],
+  "Sains":[
+    {q:"Rumus kimia air adalah…",o:["CO2","H2O","O2","NaCl"],a:1,e:"Satu molekul air terdiri dari dua atom hidrogen dan satu atom oksigen."},
+    {q:"Organ yang memompa darah ke seluruh tubuh?",o:["Paru-paru","Hati","Jantung","Ginjal"],a:2,e:"Jantung memompa darah melalui pembuluh arteri."},
+    {q:"Kecepatan cahaya di ruang hampa kira-kira…",o:["300.000 km/detik","30.000 km/detik","3.000 km/detik","3 juta km/detik"],a:0,e:"Sekitar 299.792 km per detik."},
+    {q:"Planet terdekat dari Matahari?",o:["Venus","Merkurius","Mars","Bumi"],a:1,e:"Merkurius mengorbit paling dekat dengan Matahari."},
+    {q:"Proses tumbuhan membuat makanan dengan cahaya disebut…",o:["Respirasi","Fermentasi","Fotosintesis","Transpirasi"],a:2,e:"Fotosintesis mengubah CO2 dan air menjadi glukosa dan oksigen."},
+    {q:"Satuan gaya dalam SI adalah…",o:["Joule","Watt","Newton","Pascal"],a:2,e:"Newton (N) diambil dari nama Isaac Newton."},
+    {q:"Tulang terpanjang dalam tubuh manusia?",o:["Tulang kering","Tulang paha","Tulang lengan","Tulang belakang"],a:1,e:"Femur atau tulang paha adalah tulang terpanjang dan terkuat."},
+    {q:"Bagian sel yang menjadi pusat pengendali adalah…",o:["Mitokondria","Ribosom","Inti sel","Vakuola"],a:2,e:"Inti sel menyimpan materi genetik (DNA)."},
+    {q:"Titik didih air murni pada tekanan 1 atm?",o:["90°C","100°C","110°C","120°C"],a:1,e:"Air murni mendidih pada 100°C di permukaan laut."},
+    {q:"Gas yang diserap tumbuhan saat fotosintesis?",o:["Oksigen","Nitrogen","Karbon dioksida","Helium"],a:2,e:"Tumbuhan menyerap CO2 dan melepaskan oksigen."}
+  ]
+};
+const TIME = 20, BASE = 100;
+const $ = id => document.getElementById(id);
+const shuffle = a => { a = a.slice(); for (let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; };
+let qs=[], i=0, score=0, ok=0, answered=false, left=TIME, tick=null, log=[], cat="", cnt=10;
+
+function getBest(c){ try{ return parseInt(localStorage.getItem("best:"+c)||"0",10)||0; }catch(e){ return 0; } }
+function setBest(c,v){ try{ localStorage.setItem("best:"+c,String(v)); }catch(e){} }
+
+Object.keys(BANK).forEach(k => { const o=document.createElement("option"); o.value=k; o.textContent=k; $("cat").appendChild(o); });
+function showBest(){ const b=getBest($("cat").value); $("best").textContent = b ? "Skor terbaikmu di kategori ini: "+b : "Belum ada skor tersimpan untuk kategori ini."; }
+$("cat").onchange = showBest; showBest();
+
+function show(id){ ["start","play","end"].forEach(s => $(s).classList.toggle("hidden", s!==id)); }
+
+function begin(){
+  cat=$("cat").value; cnt=Math.min(parseInt($("cnt").value,10), BANK[cat].length);
+  qs = shuffle(BANK[cat]).slice(0,cnt).map(x => {
+    const idx = shuffle(x.o.map((t,n)=>n));
+    return { q:x.q, o:idx.map(n=>x.o[n]), a:idx.indexOf(x.a), e:x.e };
+  });
+  i=0; score=0; ok=0; log=[]; show("play"); render();
+}
+
+function render(){
+  answered=false; left=TIME; const q=qs[i];
+  $("prog").textContent = "Soal "+(i+1)+" dari "+qs.length;
+  $("pts").textContent = "Skor: "+score;
+  $("fill").style.width = (i/qs.length*100)+"%";
+  $("q").textContent = q.q;
+  $("exp").classList.add("hidden"); $("next").classList.add("hidden");
+  const box=$("opts"); box.innerHTML="";
+  q.o.forEach((t,n) => {
+    const b=document.createElement("button"); b.className="opt";
+    b.innerHTML = "<b>"+"ABCD"[n]+"</b><span></span>"; b.lastChild.textContent=t;
+    b.onclick=()=>pick(n); box.appendChild(b);
+  });
+  clearInterval(tick); paintTime();
+  tick=setInterval(()=>{ left--; paintTime(); if(left<=0) pick(-1); },1000);
+}
+function paintTime(){ const t=$("time"); t.textContent="⏱ "+left+" dtk"; t.classList.toggle("low", left<=5); }
+
+function pick(n){
+  if(answered) return; answered=true; clearInterval(tick);
+  const q=qs[i], right = n===q.a;
+  if(right){ ok++; score += BASE + left*2; }
+  log.push({q:q.q, chosen:n<0?"(waktu habis)":q.o[n], answer:q.o[q.a], right});
+  [...$("opts").children].forEach((b,k)=>{ b.disabled=true; if(k===q.a) b.classList.add("good"); else if(k===n) b.classList.add("bad"); });
+  $("pts").textContent = "Skor: "+score;
+  const ex=$("exp"); ex.textContent = (n<0 ? "Waktu habis. " : right ? "Benar! " : "Kurang tepat. ")+q.e; ex.classList.remove("hidden");
+  const nx=$("next"); nx.textContent = i===qs.length-1 ? "Lihat hasil" : "Lanjut"; nx.classList.remove("hidden"); nx.focus();
+}
+
+$("next").onclick = () => { if(i<qs.length-1){ i++; render(); } else finish(); };
+
+function finish(){
+  const total=qs.length, acc=Math.round(ok/total*100), prev=getBest(cat), isBest=score>prev;
+  if(isBest) setBest(cat,score);
+  $("msg").textContent = acc===100 ? "Sempurna!" : acc>=70 ? "Kerja bagus!" : acc>=40 ? "Lumayan, terus berlatih." : "Jangan menyerah, coba lagi.";
+  $("final").textContent = score+" poin";
+  $("sOk").textContent=ok; $("sNo").textContent=total-ok; $("sAcc").textContent=acc+"%";
+  $("bestEnd").textContent = isBest ? "Rekor baru untuk kategori "+cat+"." : "Skor terbaikmu di "+cat+": "+prev;
+  const r=$("review"); r.innerHTML="";
+  log.forEach((l,n)=>{
+    const d=document.createElement("details"), s=document.createElement("summary"), p=document.createElement("div");
+    s.innerHTML='<span class="'+(l.right?"tag-good":"tag-bad")+'">'+(l.right?"Benar":"Salah")+"</span> – soal "+(n+1);
+    p.className="muted"; p.textContent=l.q+" Jawabanmu: "+l.chosen+". Jawaban benar: "+l.answer+".";
+    d.append(s,p); r.appendChild(d);
+  });
+  show("end");
+}
+
+$("go").onclick = begin;
+$("again").onclick = begin;
+$("home").onclick = () => { showBest(); show("start"); };
+</script>
+</body>
+</html>
