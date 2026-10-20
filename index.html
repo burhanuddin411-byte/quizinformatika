@@ -73,6 +73,8 @@ button:disabled{opacity:.5;cursor:default}
 .board p{margin:6px 0 0;font-size:.9rem}
 .saveform{margin-top:16px}
 .saveform input{font:inherit;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);flex:1;min-width:0}
+.field{font:inherit;width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+#idErr{color:var(--bad);min-height:1.2em;margin:10px 0 0}
 </style>
 </head>
 <body>
@@ -80,6 +82,13 @@ button:disabled{opacity:.5;cursor:default}
   <section id="start" class="card">
     <h1 class="big">Kuis Pengetahuan Umum</h1>
     <p class="muted">Jawab pertanyaan, kumpulkan poin, dan lihat skor akhirmu. Tiap soal punya batas waktu 20 detik.</p>
+    <label for="sname" style="margin-top:0">Nama lengkap</label>
+    <input class="field" id="sname" maxlength="40" autocomplete="name" placeholder="Nama sesuai absen">
+    <label for="skelas">Kelas</label>
+    <input class="field" id="skelas" maxlength="10" placeholder="Contoh: 7A">
+    <label for="snis">NIS <span class="muted">(opsional, tidak ditampilkan di papan skor)</span></label>
+    <input class="field" id="snis" inputmode="numeric" maxlength="20" autocomplete="off">
+    <p id="idErr" role="alert"></p>
     <label for="cat">Kategori</label>
     <select id="cat"></select>
     <label for="cnt">Jumlah soal</label>
@@ -107,11 +116,9 @@ button:disabled{opacity:.5;cursor:default}
       <div><strong id="sAcc"></strong><span class="muted">Akurasi</span></div>
     </div>
     <p class="muted" id="bestEnd"></p>
-    <div class="saveform" id="saveForm">
-      <label for="pname" style="margin-top:0">Simpan skor ke papan skor</label>
-      <div class="row"><input id="pname" maxlength="20" placeholder="Nama kamu" autocomplete="nickname"><button class="primary" id="saveBtn">Simpan skor</button></div>
-    </div>
+    <p id="whoEnd" style="font-weight:600;margin:0 0 4px"></p>
     <p class="muted" id="saveMsg" role="status"></p>
+    <div class="row"><button class="primary hidden" id="saveBtn">Coba simpan lagi</button></div>
     <div class="board" id="boardEnd"></div>
     <div class="review" id="review"></div>
     <div class="row" style="margin-top:18px"><button class="primary" id="again">Main lagi</button><button id="home">Ganti kategori</button></div>
@@ -171,7 +178,15 @@ $("cat").onchange = showBest; showBest();
 
 function show(id){ ["start","play","end"].forEach(s => $(s).classList.toggle("hidden", s!==id)); }
 
+let student=null;
 function begin(){
+  const name=$("sname").value.trim().replace(/\s+/g," "), kelas=$("skelas").value.trim().toUpperCase(), nis=$("snis").value.trim();
+  if(!name||!kelas){
+    $("idErr").textContent="Isi nama lengkap dan kelas dulu.";
+    show("start"); (!name?$("sname"):$("skelas")).focus(); return;
+  }
+  $("idErr").textContent=""; student={name,kelas,nis};
+  try{ localStorage.setItem("student",JSON.stringify(student)); }catch(e){}
   cat=$("cat").value; cnt=Math.min(parseInt($("cnt").value,10), BANK[cat].length);
   qs = shuffle(BANK[cat]).slice(0,cnt).map(x => {
     const idx = shuffle(x.o.map((t,n)=>n));
@@ -245,7 +260,7 @@ function localBoard(c){ try{ return JSON.parse(localStorage.getItem("board:"+c)|
 
 async function fetchBoard(c){
   if(sb){
-    const { data, error } = await sb.from("scores").select("name,score,correct,total")
+    const { data, error } = await sb.from("scores").select("name,kelas,score,correct,total")
       .eq("category", c).order("score",{ascending:false}).limit(10);
     if(error) throw error;
     return data || [];
@@ -265,7 +280,7 @@ async function loadBoard(el, c){
       const ol = document.createElement("ol");
       rows.forEach((r,n)=>{
         const li = document.createElement("li");
-        const a = document.createElement("span"); a.textContent = (n+1)+". "+r.name;
+        const a = document.createElement("span"); a.textContent = (n+1)+". "+r.name+(r.kelas?" ("+r.kelas+")":"");
         const b = document.createElement("strong"); b.textContent = r.score+" poin";
         li.append(a,b); ol.appendChild(li);
       });
@@ -282,19 +297,13 @@ async function loadBoard(el, c){
 }
 
 function prepSave(){
-  let n=""; try{ n = localStorage.getItem("pname")||""; }catch(e){}
-  $("pname").value = n;
-  $("saveForm").classList.remove("hidden");
-  $("saveBtn").disabled = false;
-  $("saveMsg").textContent = "";
-  loadBoard($("boardEnd"), cat);
+  $("whoEnd").textContent = student.name+" – Kelas "+student.kelas;
+  saveScore();
 }
 
 async function saveScore(){
-  const name = $("pname").value.trim().slice(0,20);
-  if(!name){ $("saveMsg").textContent = "Isi nama dulu sebelum menyimpan."; return; }
-  $("saveBtn").disabled = true; $("saveMsg").textContent = "Menyimpan…";
-  const row = { name, category:cat, score, correct:ok, total:qs.length };
+  $("saveBtn").classList.add("hidden"); $("saveMsg").textContent = "Menyimpan skor…";
+  const row = { name:student.name, kelas:student.kelas, nis:student.nis||null, category:cat, score, correct:ok, total:qs.length };
   try{
     if(sb){
       const { error } = await sb.from("scores").insert(row);
@@ -303,19 +312,21 @@ async function saveScore(){
       const b = localBoard(cat); b.push(row);
       try{ localStorage.setItem("board:"+cat, JSON.stringify(b)); }catch(e){ throw new Error("penyimpanan browser tidak tersedia"); }
     }
-    try{ localStorage.setItem("pname", name); }catch(e){}
     $("saveMsg").textContent = "Skor tersimpan.";
-    $("saveForm").classList.add("hidden");
-    loadBoard($("boardEnd"), cat);
   }catch(e){
     $("saveMsg").textContent = "Gagal menyimpan: "+(e.message||e);
-    $("saveBtn").disabled = false;
+    $("saveBtn").classList.remove("hidden");
   }
+  loadBoard($("boardEnd"), cat);
 }
 $("saveBtn").onclick = saveScore;
-$("pname").addEventListener("keydown", e => { if(e.key==="Enter") saveScore(); });
 $("cat").onchange = () => { showBest(); loadBoard($("boardStart"), $("cat").value); };
 loadBoard($("boardStart"), $("cat").value);
+
+try{
+  const st=JSON.parse(localStorage.getItem("student")||"null");
+  if(st){ $("sname").value=st.name||""; $("skelas").value=st.kelas||""; $("snis").value=st.nis||""; }
+}catch(e){}
 
 $("go").onclick = begin;
 $("again").onclick = begin;
