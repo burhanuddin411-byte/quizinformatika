@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Kuis Pengetahuan Umum</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <style>
 :root{
   --bg:#eef3f1; --surface:#ffffff; --ink:#16302b; --muted:#5b726c; --line:#cfdcd8;
@@ -63,6 +64,15 @@ button:disabled{opacity:.5;cursor:default}
 .review summary{cursor:pointer;font-weight:600}
 .tag-good{color:var(--good)} .tag-bad{color:var(--bad)}
 @media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+.board{margin-top:20px}
+.board h3{font-family:"Fraunces",Georgia,serif;margin:0 0 8px;font-size:1.15rem}
+.board ol{margin:0;padding:0;list-style:none;display:grid;gap:6px}
+.board li{display:flex;gap:10px;justify-content:space-between;background:var(--bg);border-radius:10px;padding:8px 12px}
+.board li span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.board li strong{font-variant-numeric:tabular-nums}
+.board p{margin:6px 0 0;font-size:.9rem}
+.saveform{margin-top:16px}
+.saveform input{font:inherit;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);flex:1;min-width:0}
 </style>
 </head>
 <body>
@@ -75,6 +85,7 @@ button:disabled{opacity:.5;cursor:default}
     <label for="cnt">Jumlah soal</label>
     <select id="cnt"><option value="5">5 soal</option><option value="10" selected>10 soal</option></select>
     <p class="muted" id="best"></p>
+    <div class="board" id="boardStart"></div>
     <div class="row" style="margin-top:18px"><button class="primary" id="go">Mulai kuis</button></div>
   </section>
 
@@ -96,6 +107,12 @@ button:disabled{opacity:.5;cursor:default}
       <div><strong id="sAcc"></strong><span class="muted">Akurasi</span></div>
     </div>
     <p class="muted" id="bestEnd"></p>
+    <div class="saveform" id="saveForm">
+      <label for="pname" style="margin-top:0">Simpan skor ke papan skor</label>
+      <div class="row"><input id="pname" maxlength="20" placeholder="Nama kamu" autocomplete="nickname"><button class="primary" id="saveBtn">Simpan skor</button></div>
+    </div>
+    <p class="muted" id="saveMsg" role="status"></p>
+    <div class="board" id="boardEnd"></div>
     <div class="review" id="review"></div>
     <div class="row" style="margin-top:18px"><button class="primary" id="again">Main lagi</button><button id="home">Ganti kategori</button></div>
   </section>
@@ -208,12 +225,101 @@ function finish(){
     p.className="muted"; p.textContent=l.q+" Jawabanmu: "+l.chosen+". Jawaban benar: "+l.answer+".";
     d.append(s,p); r.appendChild(d);
   });
+  prepSave();
   show("end");
 }
 
+/* ===== Papan skor (Supabase) =====
+   Isi dua nilai di bawah dari Supabase: Project Settings > API.
+   Jika belum diisi, papan skor memakai penyimpanan lokal di browser ini. */
+const SUPABASE_URL = "https://tgcjxnvyroxrklmyjmty.supabase.co";
+const SUPABASE_KEY = "sb_publishable_WkvrmJ15BZ7ewiBMoDUHHg_1UxRlebZ";
+let sb = null;
+try{
+  if(!SUPABASE_URL.includes("PROJECT_ID") && !SUPABASE_KEY.includes("ANON_KEY") && window.supabase){
+    sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  }
+}catch(e){ sb = null; }
+
+function localBoard(c){ try{ return JSON.parse(localStorage.getItem("board:"+c)||"[]"); }catch(e){ return []; } }
+
+async function fetchBoard(c){
+  if(sb){
+    const { data, error } = await sb.from("scores").select("name,score,correct,total")
+      .eq("category", c).order("score",{ascending:false}).limit(10);
+    if(error) throw error;
+    return data || [];
+  }
+  return localBoard(c).sort((a,b)=>b.score-a.score).slice(0,10);
+}
+
+async function loadBoard(el, c){
+  el.textContent = "Memuat papan skor…";
+  try{
+    const rows = await fetchBoard(c);
+    el.innerHTML = "";
+    const h = document.createElement("h3"); h.textContent = "Papan skor – "+c; el.appendChild(h);
+    if(!rows.length){
+      const p = document.createElement("p"); p.className="muted"; p.textContent="Belum ada skor. Jadilah yang pertama."; el.appendChild(p);
+    }else{
+      const ol = document.createElement("ol");
+      rows.forEach((r,n)=>{
+        const li = document.createElement("li");
+        const a = document.createElement("span"); a.textContent = (n+1)+". "+r.name;
+        const b = document.createElement("strong"); b.textContent = r.score+" poin";
+        li.append(a,b); ol.appendChild(li);
+      });
+      el.appendChild(ol);
+    }
+    if(!sb){
+      const p = document.createElement("p"); p.className="muted";
+      p.textContent="Mode lokal: skor hanya tersimpan di browser ini. Isi SUPABASE_URL dan SUPABASE_KEY untuk papan skor online.";
+      el.appendChild(p);
+    }
+  }catch(e){
+    el.textContent = "Papan skor tidak bisa dimuat. Periksa konfigurasi Supabase dan tabel scores.";
+  }
+}
+
+function prepSave(){
+  let n=""; try{ n = localStorage.getItem("pname")||""; }catch(e){}
+  $("pname").value = n;
+  $("saveForm").classList.remove("hidden");
+  $("saveBtn").disabled = false;
+  $("saveMsg").textContent = "";
+  loadBoard($("boardEnd"), cat);
+}
+
+async function saveScore(){
+  const name = $("pname").value.trim().slice(0,20);
+  if(!name){ $("saveMsg").textContent = "Isi nama dulu sebelum menyimpan."; return; }
+  $("saveBtn").disabled = true; $("saveMsg").textContent = "Menyimpan…";
+  const row = { name, category:cat, score, correct:ok, total:qs.length };
+  try{
+    if(sb){
+      const { error } = await sb.from("scores").insert(row);
+      if(error) throw error;
+    }else{
+      const b = localBoard(cat); b.push(row);
+      try{ localStorage.setItem("board:"+cat, JSON.stringify(b)); }catch(e){ throw new Error("penyimpanan browser tidak tersedia"); }
+    }
+    try{ localStorage.setItem("pname", name); }catch(e){}
+    $("saveMsg").textContent = "Skor tersimpan.";
+    $("saveForm").classList.add("hidden");
+    loadBoard($("boardEnd"), cat);
+  }catch(e){
+    $("saveMsg").textContent = "Gagal menyimpan: "+(e.message||e);
+    $("saveBtn").disabled = false;
+  }
+}
+$("saveBtn").onclick = saveScore;
+$("pname").addEventListener("keydown", e => { if(e.key==="Enter") saveScore(); });
+$("cat").onchange = () => { showBest(); loadBoard($("boardStart"), $("cat").value); };
+loadBoard($("boardStart"), $("cat").value);
+
 $("go").onclick = begin;
 $("again").onclick = begin;
-$("home").onclick = () => { showBest(); show("start"); };
+$("home").onclick = () => { showBest(); loadBoard($("boardStart"), $("cat").value); show("start"); };
 </script>
 </body>
 </html>
