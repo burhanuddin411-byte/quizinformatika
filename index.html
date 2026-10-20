@@ -6,6 +6,17 @@
 <title>UJIAN PENGETAHUAN UMUM</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <style>
+  .container {
+      display: flex;
+      justify-content: space-between; /* Menempatkan elemen ke ujung kiri dan kanan */
+      align-items: center;            /* Menyelaraskan gambar secara vertikal di tengah */
+      width: 100%;                    /* Lebar kontainer penuh */
+    }
+
+    .container img {
+      max-width: 45%;                 /* Atur ukuran maksimal gambar agar tidak terlalu besar */
+      height: auto;
+    }
 :root{
   --bg:#eef3f1; --surface:#ffffff; --ink:#16302b; --muted:#5b726c; --line:#cfdcd8;
   --accent:#0f766e; --accent-ink:#ffffff; --good:#15803d; --good-bg:#dcf5e5; --bad:#b91c1c; --bad-bg:#fde4e4;
@@ -80,8 +91,9 @@ button:disabled{opacity:.5;cursor:default}
 <body>
 <main>
   <section id="start" class="card">
-    <div style="text-align: center;">
-    <img src="smantra.jpg" alt="Logo Website" width="100" height="100"><img src="smantra.jpg" alt="Logo Website" width="100" height="100"></div>
+     <div class="container">
+    <img src="smantra.jpg" alt="Logo Website" width="100" height="100">
+    <img src="smantra.jpg" alt="Logo Website" width="100" height="100"></div>
     <h2 class="big"><marquee direction="right"><fontcolor: red;>ujian Pengetahuan Umum</fontcolor></marquee></h2>
     <p class="muted">Jawab pertanyaan, kumpulkan poin, dan lihat skor akhirmu. Tiap soal punya batas waktu 20 detik.</p>
     <label for="sname" style="margin-top:0">Nama lengkap</label>
